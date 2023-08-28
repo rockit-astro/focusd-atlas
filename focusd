@@ -1,0 +1,224 @@
+#!/usr/bin/env python3
+#
+# This file is part of the Robotic Observatory Control Kit (rockit)
+#
+# rockit is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# rockit is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with rockit.  If not, see <http://www.gnu.org/licenses/>.
+
+"""Daemon for controlling a FLI Atlas focuser via Pyro"""
+
+import argparse
+from ctypes import c_long, c_char_p, byref, POINTER, CDLL
+import datetime
+import threading
+import time
+from astropy.time import Time
+import astropy.units as u
+import Pyro4
+from rockit.common import log, TryLock
+from rockit.common.helpers import pyro_client_matches
+from rockit.atlas import CommandStatus, Config, FocuserStatus
+
+
+class AtlasFocuserDaemon:
+    """Daemon interface for a FLI Atlas focuser"""
+    def __init__(self, config):
+        self._config = config
+        self._driver = CDLL('/usr/lib64/libfli.so')
+        self._device = c_long(-1)
+        self._max_steps = 0
+
+        self._command_lock = threading.Lock()
+        self._state_lock = threading.Lock()
+        self._status = FocuserStatus.Disabled
+        self._current_steps = 0
+        self._target_steps = 0
+
+    @Pyro4.expose
+    def report_status(self):
+        """Returns a dictionary containing the current focuser state"""
+        with self._state_lock:
+            data = {
+                'date': datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+                'status': self._status
+            }
+
+            if self._status in [FocuserStatus.Idle, FocuserStatus.Moving]:
+                data.update({
+                    'current_steps': self._current_steps,
+                    'target_steps': self._target_steps
+                })
+
+            return data
+
+    @Pyro4.expose
+    def initialize(self):
+        """Connects to the device"""
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            if self._status != FocuserStatus.Disabled:
+                return CommandStatus.NotDisconnected
+
+            with self._state_lock:
+                self._status = FocuserStatus.Initializing
+
+            # Use the first found USB focuser (0x302 = FLIDEVICE_FOCUSER | FLIDOMAIN_USB)
+            devices = POINTER(c_char_p)()
+            self._driver.FLIList(c_long(0x302), byref(devices))
+            try:
+                if not devices or not devices[0]:
+                    return CommandStatus.DeviceNotFound
+
+                name, _ = devices[0].split(b";")
+                self._driver.FLIOpen(byref(self._device), name, c_long(0x302))
+            finally:
+                self._driver.FLIFreeList(devices)
+
+            try:
+                status = c_long()
+                start = Time.now()
+
+                # Make sure the device is not moving
+                self._driver.FLIStepMotorAsync(self._device, 0)
+                time.sleep(0.25)
+
+                # Home device if needed
+                self._driver.FLIGetDeviceStatus(self._device, byref(status))
+                if (status.value & 0x80) == 0:
+                    print('Homing device')
+                    self._driver.FLIHomeDevice(self._device)
+
+                    status = c_long()
+                    while True:
+                        self._driver.FLIGetDeviceStatus(self._device, byref(status))
+                        if (status.value & 0x80) != 0:
+                            break
+
+                        if (Time.now() - start) > self._config.move_timeout * u.s:
+                            raise TimeoutError()
+
+                        time.sleep(0.1)
+            except TimeoutError:
+                log.error(self._config.log_name, 'Homing timed out')
+                with self._state_lock:
+                    self._driver.FLIClose(self._device)
+                    self._device = c_long(-1)
+                    self._status = FocuserStatus.Disabled
+                    return CommandStatus.Failed
+
+            current_steps = c_long()
+            self._driver.FLIGetStepperPosition(self._device, byref(current_steps))
+
+            max_steps = c_long()
+            self._driver.FLIGetFocuserExtent(self._device, byref(max_steps))
+
+            with self._state_lock:
+                self._max_steps = max_steps.value
+                self._current_steps = self._target_steps = current_steps.value
+                self._status = FocuserStatus.Idle
+
+            log.info(self._config.log_name, 'Focuser initialized')
+            return CommandStatus.Succeeded
+
+    @Pyro4.expose
+    def shutdown(self):
+        """Disconnects from the device"""
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        with TryLock(self._command_lock) as success:
+            if not success:
+                return CommandStatus.Blocked
+
+            if self._status == FocuserStatus.Disabled:
+                return CommandStatus.NotConnected
+
+            log.info(self._config.log_name, 'Focuser disconnected')
+            with self._state_lock:
+                self._driver.FLIClose(self._device)
+                self._device = c_long(-1)
+                self._status = FocuserStatus.Disabled
+
+            return CommandStatus.Succeeded
+
+    @Pyro4.expose
+    def set_focus(self, steps, offset=False):
+        """Request focuser to move a specific step position"""
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        with TryLock(self._command_lock) as success:
+            if not success or self._status == FocuserStatus.Moving:
+                return CommandStatus.Blocked
+
+            if self._status == FocuserStatus.Disabled:
+                return CommandStatus.NotConnected
+
+            with self._state_lock:
+                target_steps = self._target_steps + steps if offset else steps
+                if target_steps < 0 or target_steps > self._max_steps:
+                    return CommandStatus.PositionOutsideLimits
+
+                self._target_steps = target_steps
+                self._status = FocuserStatus.Moving
+
+            delta = c_long(self._target_steps - self._current_steps)
+            self._driver.FLIStepMotorAsync(self._device, delta)
+
+            current = c_long()
+            status = c_long()
+            start = Time.now()
+            while True:
+                self._driver.FLIGetStepperPosition(self._device, byref(current))
+                self._driver.FLIGetDeviceStatus(self._device, byref(status))
+                with self._state_lock:
+                    self._current_steps = current.value
+
+                if (status.value & 0x07) == 0:
+                    with self._state_lock:
+                        self._status = FocuserStatus.Idle
+                    return CommandStatus.Succeeded
+
+                if (Time.now() - start) > self._config.move_timeout * u.s:
+                    return CommandStatus.Failed
+
+                time.sleep(0.1)
+
+    @Pyro4.expose
+    def stop(self):
+        """Stop any in progress movement"""
+        if not pyro_client_matches(self._config.control_ips):
+            return CommandStatus.InvalidControlIP
+
+        if self._status in [FocuserStatus.Disabled, FocuserStatus.Initializing]:
+            return CommandStatus.NotConnected
+
+        current = c_long()
+        self._driver.FLIStepMotorAsync(self._device, 0)
+        self._driver.FLIGetStepperPosition(self._device, byref(current))
+        with self._state_lock:
+            self._current_steps = self._target_steps = current.value
+            return CommandStatus.Succeeded
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Atlas Focuser Server')
+    parser.add_argument('config', help='Path to configuration json file')
+    args = parser.parse_args()
+    _config = Config(args.config)
+    _config.daemon.launch(AtlasFocuserDaemon(_config))

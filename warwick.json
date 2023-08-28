@@ -1,0 +1,6 @@
+{
+  "daemon": "warwick_focuser",
+  "log_name": "focusd@warwick",
+  "control_machines": ["WarwickTCS"],
+  "move_timeout": 180
+}
