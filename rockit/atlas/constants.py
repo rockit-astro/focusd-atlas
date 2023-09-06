@@ -55,20 +55,18 @@ class CommandStatus:
 
 class FocuserStatus:
     """Status of the focus hardware"""
-    Disabled, Initializing, Idle, Moving = range(4)
+    Disabled, Idle, Moving = range(3)
 
     _labels = {
         0: 'OFFLINE',
-        1: 'INITIALIZING',
-        2: 'IDLE',
-        3: 'MOVING'
+        1: 'IDLE',
+        2: 'MOVING'
     }
 
     _formats = {
         0: TFmt.Bold + TFmt.Red,
-        1: TFmt.Bold + TFmt.Yellow,
-        2: TFmt.Bold,
-        3: TFmt.Bold + TFmt.Yellow
+        1: TFmt.Bold,
+        2: TFmt.Bold + TFmt.Yellow
     }
 
     @classmethod

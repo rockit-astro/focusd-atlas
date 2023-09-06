@@ -74,9 +74,6 @@ class AtlasFocuserDaemon:
             if self._status != FocuserStatus.Disabled:
                 return CommandStatus.NotDisconnected
 
-            with self._state_lock:
-                self._status = FocuserStatus.Initializing
-
             # Use the first found USB focuser (0x302 = FLIDEVICE_FOCUSER | FLIDOMAIN_USB)
             devices = POINTER(c_char_p)()
             self._driver.FLIList(c_long(0x302), byref(devices))
@@ -89,37 +86,9 @@ class AtlasFocuserDaemon:
             finally:
                 self._driver.FLIFreeList(devices)
 
-            try:
-                status = c_long()
-                start = Time.now()
-
-                # Make sure the device is not moving
-                self._driver.FLIStepMotorAsync(self._device, 0)
-                time.sleep(0.25)
-
-                # Home device if needed
-                self._driver.FLIGetDeviceStatus(self._device, byref(status))
-                if (status.value & 0x80) == 0:
-                    print('Homing device')
-                    self._driver.FLIHomeDevice(self._device)
-
-                    status = c_long()
-                    while True:
-                        self._driver.FLIGetDeviceStatus(self._device, byref(status))
-                        if (status.value & 0x80) != 0:
-                            break
-
-                        if (Time.now() - start) > self._config.move_timeout * u.s:
-                            raise TimeoutError()
-
-                        time.sleep(0.1)
-            except TimeoutError:
-                log.error(self._config.log_name, 'Homing timed out')
-                with self._state_lock:
-                    self._driver.FLIClose(self._device)
-                    self._device = c_long(-1)
-                    self._status = FocuserStatus.Disabled
-                    return CommandStatus.Failed
+            # Make sure the device is not moving
+            self._driver.FLIStepMotorAsync(self._device, 0)
+            time.sleep(0.25)
 
             current_steps = c_long()
             self._driver.FLIGetStepperPosition(self._device, byref(current_steps))
