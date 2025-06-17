@@ -1,6 +1,6 @@
 Name:      rockit-atlas
 Version:   %{_version}
-Release:   1
+Release:   1%{dist}
 Summary:   FLI Atlas focuser.
 Url:       https://github.com/rockit-astro/atlasd
 License:   GPL-3.0
