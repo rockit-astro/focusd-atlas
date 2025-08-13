@@ -19,7 +19,6 @@
 
 import argparse
 from ctypes import c_long, c_char_p, byref, POINTER, CDLL
-import datetime
 import threading
 import time
 from astropy.time import Time
@@ -49,7 +48,7 @@ class AtlasFocuserDaemon:
         """Returns a dictionary containing the current focuser state"""
         with self._state_lock:
             data = {
-                'date': datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+                'date': Time.now().strftime('%Y-%m-%dT%H:%M:%SZ'),
                 'status': self._status
             }
 
