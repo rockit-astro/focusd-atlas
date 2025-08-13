@@ -1,8 +1,8 @@
-Name:      rockit-atlas
+Name:      rockit-focuser-atlas
 Version:   %{_version}
 Release:   1%{dist}
 Summary:   FLI Atlas focuser.
-Url:       https://github.com/rockit-astro/atlasd
+Url:       https://github.com/rockit-astro/focusd-atlas
 License:   GPL-3.0
 BuildArch: noarch
 
@@ -17,8 +17,8 @@ mkdir -p %{buildroot}%{_sysconfdir}/focusd/
 mkdir -p %{buildroot}%{_udevrulesdir}
 
 %{__install} %{_sourcedir}/focus %{buildroot}%{_bindir}
-%{__install} %{_sourcedir}/focusd %{buildroot}%{_bindir}
-%{__install} %{_sourcedir}/focusd@.service %{buildroot}%{_unitdir}
+%{__install} %{_sourcedir}/atlas_focusd %{buildroot}%{_bindir}
+%{__install} %{_sourcedir}/atlas_focusd@.service %{buildroot}%{_unitdir}
 %{__install} %{_sourcedir}/completion/focus %{buildroot}/etc/bash_completion.d
 
 %{__install} %{_sourcedir}/warwick.json %{buildroot}%{_sysconfdir}/focusd/
@@ -26,14 +26,14 @@ mkdir -p %{buildroot}%{_udevrulesdir}
 %package server
 Summary:  Focuser control server.
 Group:    Unspecified
-Requires: python3-rockit-atlas libfli
+Requires: python3-rockit-focuser-atlas libfli
 %description server
 
 %files server
 %defattr(0755,root,root,-)
-%{_bindir}/focusd
+%{_bindir}/atlas_focusd
 %defattr(0644,root,root,-)
-%{_unitdir}/focusd@.service
+%{_unitdir}/atlas_focusd@.service
 
 %package client
 Summary:  Focuser control client.

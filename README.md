@@ -23,17 +23,17 @@ The configuration options are:
 
 The automated packaging scripts will push 4 RPM packages to the observatory package repository:
 
-| Package                   | Description                                                                  |
-|---------------------------|------------------------------------------------------------------------------|
-| rockit-atlas-server       | Contains the `focusd` server and systemd service file.                       |
-| rockit-atlas-client       | Contains the `focus` commandline utility for controlling the focuser server. |
-| python3-rockit-atlas      | Contains the python module with shared code.                                 |
-| rockit-atlas-data-warwick | Contains the json configuration for the Windmill Hill Observatory telescope. |
+| Package                           | Description                                                                  |
+|-----------------------------------|------------------------------------------------------------------------------|
+| rockit-focuser-atlas-server       | Contains the `atlas_focusd` server and systemd service file.                 |
+| rockit-focuser-atlas-client       | Contains the `focus` commandline utility for controlling the focuser server. |
+| python3-rockit-focuser-atlas      | Contains the python module with shared code.                                 |
+| rockit-focuser-atlas-data-warwick | Contains the json configuration for the Marsh Observatory telescope.         |
 
 After installing packages, the systemd service should be enabled:
 
 ```
-sudo systemctl enable --now focusd@<config>
+sudo systemctl enable --now atlas_focusd@<config>
 ```
 
 where `config` is the name of the json file for the appropriate telescope.
@@ -56,13 +56,13 @@ sudo yum update
 
 The daemon should then be restarted to use the newly installed code:
 ```
-sudo systemctl restart focusd@<config>
+sudo systemctl restart atlas_focusd@<config>
 ```
 
 ### Testing Locally
 
 The camera server and client can be run directly from a git clone:
 ```
-./focusd test.json
+./atlas_focusd test.json
 FOCUSD_CONFIG_PATH=./warwick.json ./focus status
 ```

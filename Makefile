@@ -7,8 +7,8 @@ RPMBUILD = rpmbuild --define "_topdir %(pwd)/build" \
 all:
 	mkdir -p build
 	date --utc +%Y%m%d%H%M%S > VERSION
-	${RPMBUILD} --define "_version %(cat VERSION)" -ba rockit-atlas.spec
-	${RPMBUILD} --define "_version %(cat VERSION)" -ba python3-rockit-atlas.spec
+	${RPMBUILD} --define "_version %(cat VERSION)" -ba rockit-focuser-atlas.spec
+	${RPMBUILD} --define "_version %(cat VERSION)" -ba python3-rockit-focuser-atlas.spec
 
 	mv build/noarch/*.rpm .
 	rm -rf build VERSION
@@ -18,8 +18,8 @@ install:
 	@python3 -m build --outdir .
 	@sudo pip3 install rockit.atlas-$$(cat VERSION)-py3-none-any.whl
 	@rm VERSION
-	@cp focusd focus /bin/
-	@cp focusd@.service /usr/lib/systemd/system/
+	@cp atlas_focusd focus /bin/
+	@cp atlas_focusd@.service /usr/lib/systemd/system/
 	@cp completion/focus /etc/bash_completion.d/
 	@install -d /etc/focusd
 	@echo ""

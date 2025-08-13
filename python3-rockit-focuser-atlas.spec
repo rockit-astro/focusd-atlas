@@ -1,9 +1,9 @@
-Name:           python3-rockit-atlas
+Name:           python3-rockit-focuser-atlas
 Version:        %{_version}
 Release:        1%{dist}
 License:        GPL3
 Summary:        Common backend code for FLI Atlas focuser daemon
-Url:            https://github.com/rockit-astro/atlasd
+Url:            https://github.com/rockit-astro/focusd-atlas
 BuildArch:      noarch
 BuildRequires:  python3-devel
 

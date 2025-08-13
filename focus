@@ -23,7 +23,7 @@ import os
 import sys
 import Pyro4
 from rockit.common import TFmt
-from rockit.atlas import Config, CommandStatus, FocuserStatus
+from rockit.focuser.atlas import Config, CommandStatus, FocuserStatus
 
 
 SCRIPT_NAME = os.path.basename(sys.argv[0])
