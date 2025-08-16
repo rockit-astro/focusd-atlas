@@ -22,7 +22,7 @@ import json
 import os
 import sys
 import Pyro4
-from rockit.common import TFmt
+from rockit.common import print
 from rockit.focuser.atlas import Config, CommandStatus, FocuserStatus
 
 
@@ -63,10 +63,10 @@ def print_status(config, _):
 
     label = f'Focuser is {FocuserStatus.label(data["status"], True)}'
     if data['status'] == FocuserStatus.Idle:
-        label += f' ({TFmt.Bold}{data["current_steps"]:06d}{TFmt.Clear} steps)'
+        label += f' ([b]{data["current_steps"]:06d}[/b] steps)'
     elif data['status'] == FocuserStatus.Moving:
-        label += f' ({TFmt.Bold}{data["current_steps"]:06d}{TFmt.Clear} / '
-        label += f'{TFmt.Bold}{data["target_steps"]:06d}{TFmt.Clear} steps)'
+        label += f' ([b]{data["current_steps"]:06d}[/b] / '
+        label += f'[b]{data["target_steps"]:06d}[/b] steps)'
 
     print(label)
     return 0
